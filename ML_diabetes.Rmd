@@ -1,0 +1,355 @@
+---
+title: "ML_diabetes"
+output: html_document
+---
+
+
+# Import data
+```{r}
+data = read.csv("C://Users//dasha//Desktop//diabetes_prediction_dataset.csv")
+library(tidyverse)
+library(ggplot2)
+```
+
+# Explore variables
+```{r}
+summary(data)
+```
+
+
+# NA's check 
+```{r}
+colSums(is.na(data))
+```
+
+# Change types of variables
+```{r}
+data %>% str()
+
+data[1] <- lapply(data[1], factor) 
+data[3:5] <- lapply(data[3:5], factor) 
+data[9] <- lapply(data[9], factor) 
+```
+#Descriptive Statistics
+
+#Gender
+```{r}
+ggplot(data) +
+  aes(x = gender, fill = diabetes) +
+  ggtitle("Gender distribution colored in dependent variable (diabetes)")+
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+#Age
+```{r}
+ggplot(data) +
+  aes(x = age, fill = diabetes) +
+  ggtitle("Age distribution colored in dependent variable (diabetes)")+
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+## The group of people who have diabetes is older, the median age is more than 60, while median age of healthy people is around 40 years old.
+
+#Hypertension
+
+```{r}
+ggplot(data) +
+  aes(x = hypertension, fill = diabetes) +
+  ggtitle("Hypertension distribution colored in dependent variable (diabetes)")+
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+## The number of people who have diabetes is higher in group without hypertension (increased blood pressure).
+
+#Heart disease
+
+```{r}
+ggplot(data) +
+  aes(x = heart_disease, fill = diabetes) +
+  ggtitle("Heart disease distribution colored in dependent variable (diabetes)")+
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+## The number of people who have diabetes is higher in group without heart disease.
+
+#Smoking history
+
+```{r}
+ggplot(data) +
+  aes(x = smoking_history, fill = diabetes) +
+  ggtitle("Smoking history distribution colored in dependent variable (diabetes)")+
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+## The chart below shows that the number of people with diabetes is higher in group who have never smoked.
+
+#BMI
+
+```{r}
+ggplot(data) +
+  aes(x = bmi, fill=diabetes) +
+  ggtitle("BMI distribution colored in dependent variable (diabetes)")+
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+## BMI is higher in the group of people who have diabetes. BMI less than 18.5 is underweight, 18.5-24.9 is normal, 25-29.9 is overweight, and 30 or more is obese. Majority of people have overweight according to BMI norms.
+
+
+#HbA1c level
+```{r}
+ggplot(data) +
+  aes(x = HbA1c_level, fill=diabetes) +
+  ggtitle("HbA1c level distribution colored in dependent variable (diabetes)")+
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+## HbA1c (Hemoglobin A1c) level is a measure of a person's average blood sugar level over the past 2-3 months. Higher HbA1c level has group with diabetes.
+
+
+#Blood glucose level
+```{r}
+ggplot(data) +
+  aes(x = blood_glucose_level, fill=diabetes) +
+  ggtitle("Blood glucose level distribution colored in dependent variable (diabetes)")+
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+## According to median, people with diabetes glucose level is more than 150, while healthy people have median less than 150.
+
+
+#Diabetes
+
+```{r}
+ggplot(data) +
+  aes(x = diabetes) +
+  ggtitle("Diabetes distribution") +
+  geom_bar(fill = 'coral', color='black') +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+summary(data$diabetes)
+# Data is imbalanced. There are 91500 people who have diabetes and 8500 who not.
+```
+
+# Splitting data
+```{r}
+set.seed(123)
+index_train = sample(1:nrow(data), 2 / 3 * nrow(data))
+training_set = data[index_train, ]
+test_set = data[-index_train, ]
+```
+
+
+# Logistic regression
+```{r}
+modelLR = glm(diabetes ~ . , family= "binomial", data = training_set)
+summary(modelLR)
+
+predictionLR = predict(modelLR, newdata = test_set, type = "response")
+predictionLR = ifelse(predictionLR < 0.3, 0, 1)
+
+library(e1071)
+library(caret)
+predictionLR = factor(predictionLR)
+a = confusionMatrix(predictionLR, test_set$diabetes)
+a
+accuracyLR = a$overall[1]
+accuracyLR
+# Accuracy is 0.951971
+```
+
+```{r}
+library(pROC)
+AUCLR = auc(test_set$diabetes,as.numeric(predictionLR))
+AUCLR
+#Area under the curve: 0.8499
+```
+
+
+# Naive Bayes classifier
+```{r}
+modelBayes = naiveBayes(diabetes ~ ., data = training_set)
+modelBayes
+predictionBayes = predict(modelBayes, newdata = test_set)
+a = confusionMatrix(predictionBayes, test_set$diabetes)
+a 
+accuracyBayes = a$overall[1]
+accuracyBayes
+
+# Accuracy is 0.9538  
+
+#Sensitivity : 0.9819         
+#Specificity : 0.6454 
+```
+
+```{r}
+AUCBayes = auc(test_set$diabetes,as.numeric(predictionBayes))
+AUCBayes
+#Area under the curve: 0.8136
+```
+
+
+
+
+# Cross-validation for RF and DT
+```{r}
+# Cross-validation
+set.seed(123)
+train.control = trainControl(method = "cv", number = 5)
+```
+
+
+# DT with cross-validation
+```{r}
+model_DT = train(diabetes ~ ., method= "rpart", data = data, trControl = train.control)
+predictions_DT = predict(model_DT, newdata = data)
+library(rpart.plot)
+rpart.plot(model_DT$finalModel)
+
+a = confusionMatrix(predictions_DT, data$diabetes)
+a
+accuracy_DT = a$overall[1]
+accuracy_DT
+# Accuracy is 0.9719.
+
+library(cvAUC)
+a = cvAUC(as.numeric(predictions_DT), as.numeric(data$diabetes))
+a
+AUC_model_DT = a[3]
+AUC_model_DT
+# AUC is 0.8345294.
+```
+
+# Random forest with cross-validation
+```{r}
+library(randomForest)
+model_RF = train(diabetes ~ ., method= "rf", ntree = 50, data = data, trControl = train.control)
+predictions_RF = predict(model_RF, newdata = data)
+
+a = confusionMatrix(predictions_RF, data$diabetes)
+a
+accuracy_RF = a$overall[1]
+accuracy_RF
+# Accuracy is 0.9719 
+
+a = cvAUC(as.numeric(predictions_RF), as.numeric(data$diabetes))
+AUC_model_RF = a[3]
+AUC_model_RF
+# AUC is 0.8345882
+
+plot(varImp(model_RF))
+```
+
+
+# RUS&ROS sampling
+```{r}
+library(ROSE)
+sampling_result = ovun.sample(diabetes ~ ., data = training_set, method = "both", seed = 123)
+
+training_set_sampled = sampling_result$data 
+
+```
+
+# Logistic regression
+```{r}
+modelLR2 = glm(diabetes ~ . , family= "binomial", data = training_set_sampled)
+summary(modelLR2)
+
+predictionLR2 = predict(modelLR2, newdata = test_set, type = "response")
+predictionLR2 = ifelse(predictionLR2 < 0.3, 0, 1)
+
+predictionLR2 = factor(predictionLR2)
+a = confusionMatrix(predictionLR2, test_set$diabetes)
+a
+accuracyLR2 = a$overall[1]
+accuracyLR2
+# Accuracy is 0.8202
+
+AUCLR2 = auc(test_set$diabetes,as.numeric(predictionLR2))
+AUCLR2
+#Area under the curve: 0.8792
+```
+
+# Naive Bayes classifier
+```{r}
+model_Bayes2 = naiveBayes(diabetes ~ ., data = training_set_sampled)
+model_Bayes2
+prediction_Bayes2 = predict(model_Bayes2, newdata = test_set)
+a = confusionMatrix(prediction_Bayes2, test_set$diabetes)
+a
+
+accuracyBayes2 = a$overall[1]
+accuracyBayes2
+# Accuracy is 0.8835          
+```
+
+```{r}
+AUCBayes2 = auc(test_set$diabetes,as.numeric(prediction_Bayes2))
+AUCBayes2
+#Area under the curve: 0.8714
+```
+
+
+
+
+# DT without cross-validation
+```{r}
+# Decision tree model
+modelDT2 = train(diabetes ~ ., method= "rpart", data = training_set_sampled)
+predictionsDT2 = predict(modelDT2, newdata = test_set)
+# plotting tree
+rpart.plot(modelDT2$finalModel)
+
+a = confusionMatrix(predictionsDT2, test_set$diabetes)
+a
+accuracyDT2 = a$overall[1]
+accuracyDT2
+# Accuracy is 0.9735
+
+AUC_DT2 = auc(as.numeric(test_set$diabetes), as.numeric(predictionsDT2))
+
+AUC_DT2
+# AUC is 0.8407
+```
+
+# Random forest without cross-validation
+```{r}
+modelRF2 = train(diabetes ~ ., method= "rf", ntree = 50, data = training_set_sampled)
+predictionsRF2 = predict(modelRF2, newdata = test_set)
+
+a = confusionMatrix(predictionsRF2, test_set$diabetes)
+a
+accuracyRF2 = a$overall[1]
+accuracyRF2
+# Accuracy is 0.9478          
+
+AUC_modelRF2 = auc(as.numeric(test_set$diabetes), as.numeric(predictionsRF2))
+AUC_modelRF2
+# AUC is 0.884
+
+plot(varImp(modelRF2))
+```
+
+
+## Conclusion
+
+Before sampling - Decision tree with cross validation and Random Forest with cross validation have better diabetes prediction results comparing to logistic regression and Bayes classifier.
+
+After RUS&ROS sampling - all ML models showed decrease in accuracy, despite Decision Tree.
+
+Based on results, for this data for more accurate prediction of diabetes risk it is recommended to use Decision Tree algorithm with sampling or Decision Tree or Random Forest methods with cross validation without sampling.
+
+According to variable importance results, Hemoglobin A1c level, blood glucose level, age and BMI have stronger influence on developing diabetes risk.
+
+
+
+
+
+
+
+
+
+
+
